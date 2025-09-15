@@ -1,0 +1,152 @@
+/* Receipt.css - Optimized for 80mm Thermal POS Printers */
+
+/* Reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.receipt-container {
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  font-size: 12px;
+  line-height: 1.3;
+  color: #222;
+  background: #fff;
+  width: 80mm;          /* Fixed printer width */
+  max-width: 80mm;      /* Prevent overflow */
+  display: inline-block; /* Shrink-wrap content to stop extra paper */
+  padding: 4px 6px;      /* Minimal padding */
+  overflow: hidden;
+}
+
+.receipt {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header */
+.receipt-header {
+  text-align: center;
+  margin-bottom: 6px;
+}
+
+.receipt-title {
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.receipt-address,
+.receipt-contact {
+  font-size: 10px;
+  color: #555;
+}
+
+/* Divider */
+.receipt-divider {
+  border-top: 1px solid #aaa;
+  margin: 4px 0;
+}
+
+/* Order Info */
+.receipt-order-info,
+.receipt-totals {
+  margin: 4px 0;
+  font-size: 11px;
+}
+
+.d-flex {
+  display: flex;
+}
+
+.justify-content-between {
+  justify-content: space-between;
+}
+
+/* Items */
+.receipt-items {
+  margin: 4px 0;
+}
+
+.receipt-item {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.receipt-item-name {
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  font-size: 11px;
+}
+
+.receipt-item-price {
+  max-width: 35%;
+  text-align: right;
+  white-space: nowrap;
+  font-weight: 500;
+  font-size: 11px;
+}
+
+/* Totals */
+.receipt-totals span,
+.receipt-totals strong {
+  font-size: 11px;
+}
+
+.receipt-totals strong {
+  font-weight: 700;
+}
+
+.text-muted {
+  font-size: 10px;
+  color: #888;
+}
+
+/* Footer */
+.receipt-footer {
+  text-align: center;
+  margin-top: 4px;
+  font-size: 10px;
+  color: #444;
+}
+
+.receipt-footer p,
+.receipt-footer small {
+  margin: 0;
+  font-weight: 500;
+}
+
+/* Print styles */
+@media print {
+  body, html {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: none !important;
+  }
+
+  .receipt-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    display: inline-block;  /* Shrink-wrap content */
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: hidden;
+    page-break-after: auto;  /* Stop printing after content */
+  }
+
+  .receipt {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  @page {
+    size: auto;
+    margin: 0;
+  }
+}

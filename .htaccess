@@ -1,0 +1,29 @@
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /ease-pos-cashier/
+
+  RewriteRule ^index\.html$ - [L]
+
+  # If request is not a file, folder, or PHP file, send it to index.html
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteCond %{REQUEST_FILENAME} !index\.php
+  RewriteRule ^.*$ /ease-pos-cashier/index.html [L]
+</IfModule>
+
+# Disable caching for index.html (always fetch latest React build)
+<FilesMatch "index\.html$">
+  Header set Cache-Control "no-cache, no-store, must-revalidate"
+  Header set Pragma "no-cache"
+  Header set Expires 0
+</FilesMatch>
+
+# Enable long-term caching for hashed static assets
+<FilesMatch "\.(ico|css|js|gif|jpe?g|png|woff2?|eot|ttf|svg)$">
+  Header set Cache-Control "public, max-age=15552000"
+</FilesMatch>
+
+# (Optional) Gzip compression for text-based assets
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/css application/javascript application/json
+</IfModule>

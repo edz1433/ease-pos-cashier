@@ -1,0 +1,192 @@
+/* Receipt.css - Responsive POS Receipt Styles */
+
+/* Base styles for all paper sizes */
+.receipt-container {
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #222;
+  background: #fff;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0;
+  box-sizing: border-box;
+  width: 80mm; /* Default standard POS paper width */
+}
+
+.receipt {
+  width: 100%;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.receipt-header {
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+.receipt-title {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  margin: 0 0 2px 0;
+}
+
+.receipt-address,
+.receipt-contact {
+  font-size: 11px;
+  margin: 0;
+  color: #555;
+}
+
+.receipt-divider {
+  border: none;
+  border-top: 1px solid #aaa;
+  margin: 8px 0;
+}
+
+.receipt-order-info,
+.receipt-items,
+.receipt-totals {
+  margin: 6px 0;
+}
+
+.receipt-order-info span:first-child {
+  color: #555;
+}
+
+.receipt-item {
+  margin-bottom: 6px;
+}
+
+.receipt-item-name {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.receipt-item-price {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.text-muted {
+  color: #888;
+  font-size: 11px;
+}
+
+.receipt-totals span,
+.receipt-totals strong {
+  font-size: 12px;
+}
+
+.receipt-totals strong {
+  font-weight: 700;
+}
+
+.receipt-footer {
+  text-align: center;
+  margin-top: 10px;
+  font-size: 11px;
+  color: #444;
+}
+
+.receipt-footer p {
+  margin: 0 0 2px;
+  font-weight: 500;
+}
+
+/* Utility classes */
+.d-flex {
+  display: flex;
+}
+
+.justify-content-between {
+  justify-content: space-between;
+}
+
+.text-center {
+  text-align: center;
+}
+
+/* Responsive paper sizes */
+@media (max-width: 62mm) {
+  /* 58mm paper size */
+  .receipt-container {
+    width: 58mm;
+  }
+  
+  .receipt-title {
+    font-size: 14px;
+  }
+  
+  .receipt-item-name,
+  .receipt-item-price {
+    font-size: 11px;
+  }
+}
+
+@media (min-width: 63mm) and (max-width: 80mm) {
+  /* 76mm paper size */
+  .receipt-container {
+    width: 76mm;
+  }
+}
+
+@media (min-width: 100mm) {
+  /* 112mm paper size */
+  .receipt-container {
+    width: 112mm;
+  }
+  
+  .receipt {
+    padding: 15px;
+  }
+  
+  .receipt-title {
+    font-size: 18px;
+  }
+  
+  .receipt-item-name,
+  .receipt-item-price {
+    font-size: 14px;
+  }
+}
+
+/* Print styles - CRITICAL for thermal printing */
+@media print {
+  body, html {
+    height: auto;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: none;
+  }
+  
+  body {
+    display: block;
+  }
+  
+  .receipt-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-shadow: none;
+    border-radius: 0;
+    margin: 0 !important;
+    padding: 0 !important;
+    page-break-after: avoid;
+    page-break-inside: avoid;
+  }
+  
+  .receipt {
+    padding: 5px !important;
+    margin: 0 !important;
+  }
+  
+  @page {
+    size: auto;
+    margin: 0;
+    padding: 0;
+  }
+}
