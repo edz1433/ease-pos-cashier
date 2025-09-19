@@ -238,10 +238,10 @@ const Receipt = forwardRef(
                   <small style={styles.textMuted}>VATable Sales:</small>
                   <small style={styles.textMuted}>₱{formatNumber(vatableSales)}</small>
                 </div>
-                <div style={styles.flexBetween}>
+                {/* <div style={styles.flexBetween}>
                   <small style={styles.textMuted}>VAT (12%):</small>
                   <small style={styles.textMuted}>₱{formatNumber(vatAmount)}</small>
-                </div>
+                </div> */}
               </>
             )}
 
