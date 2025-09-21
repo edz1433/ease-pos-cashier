@@ -161,7 +161,7 @@ const Receipt = forwardRef(
         <div style={styles.receipt}>
           {/* Header */}
           <div style={styles.receiptHeader}>
-            <h4 style={styles.receiptTitle}>KER IT SOLUTIONS</h4>
+            <h4 style={styles.receiptTitle}>KERR IT SOLUTIONS</h4>
             <p style={styles.receiptAddress}>Poblacion, Mabinay, Negros Oriental</p>
             <p style={styles.receiptContact}>+63 906 308 4301</p>
           </div>
@@ -174,7 +174,7 @@ const Receipt = forwardRef(
             </div>
             <div style={styles.flexBetween}>
               <span>Cashier:</span>
-              <span>KERR DEVERO</span>
+              <span>John Paul Bibay</span>
             </div>
             <div style={styles.flexBetween}>
               <span>Date:</span>
