@@ -94,7 +94,8 @@ const PaymentMethodModal = ({ isOpen, onClose, paymentMethod, setPaymentMethod }
   const methods = [
     { id: 'cash', name: 'Cash', icon: 'fas fa-money-bill-wave' },
     { id: 'gcash', name: 'GCash', icon: 'fas fa-mobile-alt' },
-    { id: 'bank', name: 'Bank Transfer', icon: 'fas fa-university' }
+    { id: 'bank', name: 'Bank Transfer', icon: 'fas fa-university' },
+    { id: 'credit', name: 'Credit', icon: 'fas fa-wallet' },
   ];
 
   return (

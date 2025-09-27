@@ -1,17 +1,17 @@
 {
   "files": {
-    "main.css": "http://192.168.1.21/ease-pos-cashier/static/css/main.b273cb29.css",
-    "main.js": "http://192.168.1.21/ease-pos-cashier/static/js/main.a9d8c922.js",
+    "main.css": "http://192.168.1.21/ease-pos-cashier/static/css/main.09833898.css",
+    "main.js": "http://192.168.1.21/ease-pos-cashier/static/js/main.c50c9791.js",
     "static/media/fa-solid-900.woff2": "http://192.168.1.21/ease-pos-cashier/static/media/fa-solid-900.f54756da1f3d1b88887f.woff2",
     "static/media/fa-brands-400.woff2": "http://192.168.1.21/ease-pos-cashier/static/media/fa-brands-400.1f6bad931d92a0a52c45.woff2",
     "static/media/fa-regular-400.woff2": "http://192.168.1.21/ease-pos-cashier/static/media/fa-regular-400.5632c43107f4d3fa4806.woff2",
     "static/media/fa-v4compatibility.woff2": "http://192.168.1.21/ease-pos-cashier/static/media/fa-v4compatibility.24fc9d217708cb3f0362.woff2",
     "index.html": "http://192.168.1.21/ease-pos-cashier/index.html",
-    "main.b273cb29.css.map": "http://192.168.1.21/ease-pos-cashier/static/css/main.b273cb29.css.map",
-    "main.a9d8c922.js.map": "http://192.168.1.21/ease-pos-cashier/static/js/main.a9d8c922.js.map"
+    "main.09833898.css.map": "http://192.168.1.21/ease-pos-cashier/static/css/main.09833898.css.map",
+    "main.c50c9791.js.map": "http://192.168.1.21/ease-pos-cashier/static/js/main.c50c9791.js.map"
   },
   "entrypoints": [
-    "static/css/main.b273cb29.css",
-    "static/js/main.a9d8c922.js"
+    "static/css/main.09833898.css",
+    "static/js/main.c50c9791.js"
   ]
 }

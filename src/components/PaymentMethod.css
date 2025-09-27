@@ -15,7 +15,7 @@
     background: white;
     border-radius: 8px;
     width: 90%;
-    max-width: 400px;
+    max-width: 600px; /* increased from 400px */
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
 }
 
@@ -52,7 +52,7 @@
 
 .payment-methods {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr); /* 4 in one row */
     gap: 0.5rem;
 }
 
@@ -70,8 +70,9 @@
 }
 
 .payment-method.selected {
-    border-color: #007bff;
-    background-color: #e8f4ff;
+    border-color: #fc204f;
+    background-color: #FFFF;
+    color: #fc204f;
 }
 
 .payment-icon {
@@ -81,7 +82,7 @@
 }
 
 .payment-method.selected .payment-icon {
-    color: #007bff;
+    color: #fc204f;
 }
 
 .payment-name {
