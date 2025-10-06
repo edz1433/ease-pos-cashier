@@ -231,9 +231,9 @@ export default function App() {
   return (
     <Router>
       <SidebarProvider>
-        <AuthCheck>
+        {/* <AuthCheck> */}
           <MainApp />
-        </AuthCheck>
+        {/* </AuthCheck> */}
       </SidebarProvider>
     </Router>
   );
