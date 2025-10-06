@@ -187,9 +187,9 @@ const SalesTable = ({ user }) => {
     
     switch (method.toLowerCase()) {
       case "cash": return <span className="badge bg-primary">Cash</span>;
-      case "card": return <span className="badge bg-info">Card</span>;
       case "gcash": return <span className="badge bg-success">GCash</span>;
       case "bank transfer": return <span className="badge bg-warning">Bank Transfer</span>;
+      case "credit": return <span className="badge bg-info">Credit</span>;
       default: return <span className="badge bg-secondary">{method}</span>;
     }
   };

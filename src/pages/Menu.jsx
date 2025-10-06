@@ -95,7 +95,7 @@ const PaymentMethodModal = ({ isOpen, onClose, paymentMethod, setPaymentMethod }
     { id: 'cash', name: 'Cash', icon: 'fas fa-money-bill-wave' },
     { id: 'gcash', name: 'GCash', icon: 'fas fa-mobile-alt' },
     { id: 'bank', name: 'Bank Transfer', icon: 'fas fa-university' },
-    { id: 'credit', name: 'Credit', icon: 'fas fa-wallet' },
+    { id: 'credit', name: 'Credit', icon: 'fas fa-credit-card' },
   ];
 
   return (
@@ -127,7 +127,7 @@ const PaymentMethodModal = ({ isOpen, onClose, paymentMethod, setPaymentMethod }
           </div>
         </div>
         <div className="modal-footer">
-          <small className="text-muted">Press F2 to open this dialog</small>
+          <small className="text-muted">Press F2 or F3 to open this dialog</small>
         </div>
       </div>
     </div>
@@ -422,11 +422,10 @@ const ProductSearchModal = ({
 export default function Menu() {
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
-  const [allProducts, setAllProducts] = useState([]); // For search modal
+  const [allProducts, setAllProducts] = useState([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("hot");
-
   const [orderItems, setOrderItems] = useState([]);
   const [discount, setDiscount] = useState(0);
   const [amountTendered, setAmountTendered] = useState(0);
@@ -436,10 +435,11 @@ export default function Menu() {
   const [tableNo, setTableNo] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("Cash");
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [showProductModal, setShowProductModal] = useState(false); // For product search modal
+  const [showProductModal, setShowProductModal] = useState(false);
+  const [customers, setCustomers] = useState([]); // Initialize as empty array
+  const [loadingCustomers, setLoadingCustomers] = useState(false); // New state for loading customers
 
   const barcodeInputRef = useRef(null);
-
   const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
   const fixedCategory = { id: "hot", name: "Hot", icon: "fas fa-fire" };
 
@@ -473,7 +473,6 @@ export default function Menu() {
       }
     } catch (error) {
       console.error("Error fetching transaction number:", error);
-      // Fallback to local timestamp if API fails
       const timestamp = new Date().getTime();
       setOrderNumber(`LOCAL-${timestamp}`);
       toast.error("Failed to fetch order number, using local fallback", { position: "top-center" });
@@ -482,73 +481,98 @@ export default function Menu() {
     }
   };
 
-// Fetch all products for search modal
-const fetchAllProducts = async () => {
-  try {
-    const response = await axios.get(`${API_BASE_URL}/api/all-products`);
-    
-    // Transform the API data to match expected structure
-    const transformedProducts = transformProductData(response.data);
-    setAllProducts(transformedProducts);
-  } catch (error) {
-    console.error("Error fetching all products:", error);
-    toast.error("Failed to load products for search", { position: "top-center" });
-  }
-};
+  // Fetch all products for search modal
+  const fetchAllProducts = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/all-products`);
+      const transformedProducts = transformProductData(response.data);
+      setAllProducts(transformedProducts);
+    } catch (error) {
+      console.error("Error fetching all products:", error);
+      toast.error("Failed to load products for search", { position: "top-center" });
+    }
+  };
 
-// Helper function to transform API data
-const transformProductData = (apiProducts) => {
-  const productMap = {};
-  
-  apiProducts.forEach(product => {
-    if (!productMap[product.id]) {
-      productMap[product.id] = {
-        id: product.id,
-        barcode: product.barcode,
-        product_name: product.product_name,
-        model: product.model,
-        packaging: parseInt(product.packaging) || 1,
-        capital: parseFloat(product.capital) || 0,
-        vatable: product.vatable,
-        image: product.image,
-        retail_unit_name: product.unit_name || 'pc',
-        wholesale_unit_name: product.unit_name || 'pkg',
-        // Initialize both price types as 0
-        r_price: 0,
-        w_price: 0,
-        rqty: 0,
-        wqty: 0,
-        type: 'both' // Default to both if we have both types
+  // Fetch customers when payment method is Credit
+  useEffect(() => {
+    if (paymentMethod === 'Credit') {
+      const fetchCustomers = async () => {
+        try {
+          setLoadingCustomers(true);
+          const response = await axios.get(`${API_BASE_URL}/api/customers`);
+          // Handle possible nested data or unexpected response format
+          const customerData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data?.data || [];
+          if (!Array.isArray(customerData)) {
+            console.error("Customers API response is not an array:", customerData);
+            throw new Error("Invalid customers data format");
+          }
+          setCustomers(customerData);
+        } catch (error) {
+          console.error("Error fetching customers:", error);
+          toast.error("Failed to load customers for credit payment", { position: "top-center" });
+          setCustomers([]); // Ensure customers is an array even on error
+        } finally {
+          setLoadingCustomers(false);
+        }
       };
+      fetchCustomers();
+    } else {
+      setCustomers([]); // Clear customers when not using Credit
+      if (customerName !== "") setCustomerName(""); // Reset customerName if not Credit
     }
-    
-    // Update the product based on type
-    if (product.type === 'retail') {
-      productMap[product.id].r_price = parseFloat(product.price) || 0;
-      productMap[product.id].rqty = parseInt(product.qty) || 0;
-    } else if (product.type === 'wholesale') {
-      productMap[product.id].w_price = parseFloat(product.price) || 0;
-      productMap[product.id].wqty = parseInt(product.qty) || 0;
-      productMap[product.id].wholesale_unit_name = product.unit_name || 'pkg';
-    }
-    
-    // Determine the product type
-    if (productMap[product.id].r_price > 0 && productMap[product.id].w_price > 0) {
-      productMap[product.id].type = 'both';
-    } else if (productMap[product.id].r_price > 0) {
-      productMap[product.id].type = 'retail';
-    } else if (productMap[product.id].w_price > 0) {
-      productMap[product.id].type = 'wholesale';
-    }
-  });
-  
-  return Object.values(productMap);
-};
+  }, [paymentMethod, API_BASE_URL]);
 
-  //DisableBrowserShortcuts
+  // Helper function to transform API data
+  const transformProductData = (apiProducts) => {
+    const productMap = {};
+    
+    apiProducts.forEach(product => {
+      if (!productMap[product.id]) {
+        productMap[product.id] = {
+          id: product.id,
+          barcode: product.barcode,
+          product_name: product.product_name,
+          model: product.model,
+          packaging: parseInt(product.packaging) || 1,
+          capital: parseFloat(product.capital) || 0,
+          vatable: product.vatable,
+          image: product.image,
+          retail_unit_name: product.unit_name || 'pc',
+          wholesale_unit_name: product.unit_name || 'pkg',
+          r_price: 0,
+          w_price: 0,
+          rqty: 0,
+          wqty: 0,
+          type: 'both'
+        };
+      }
+      
+      if (product.type === 'retail') {
+        productMap[product.id].r_price = parseFloat(product.price) || 0;
+        productMap[product.id].rqty = parseInt(product.qty) || 0;
+      } else if (product.type === 'wholesale') {
+        productMap[product.id].w_price = parseFloat(product.price) || 0;
+        productMap[product.id].wqty = parseInt(product.qty) || 0;
+        productMap[product.id].wholesale_unit_name = product.unit_name || 'pkg';
+      }
+      
+      if (productMap[product.id].r_price > 0 && productMap[product.id].w_price > 0) {
+        productMap[product.id].type = 'both';
+      } else if (productMap[product.id].r_price > 0) {
+        productMap[product.id].type = 'retail';
+      } else if (productMap[product.id].w_price > 0) {
+        productMap[product.id].type = 'wholesale';
+      }
+    });
+    
+    return Object.values(productMap);
+  };
+
+  // DisableBrowserShortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Disable F1 to F12
       if (e.keyCode >= 112 && e.keyCode <= 123) {
         e.preventDefault();
         e.stopPropagation();
@@ -556,13 +580,18 @@ const transformProductData = (apiProducts) => {
         switch (e.keyCode) {
           case 112: // F1
             setShowProductModal(true);
-            fetchAllProducts(); // Load products when opening modal
+            fetchAllProducts();
             console.log('F1 pressed - Product Search modal opened');
             break;
 
           case 113: // F2
             setShowPaymentModal(true);
             console.log('F2 pressed - Payment Method modal opened');
+            break;
+
+          case 114: // F3
+            setPaymentMethod('Credit');
+            console.log('F3 pressed - Payment Method modal opened with Credit selected');
             break;
 
           case 115: // F4
@@ -575,20 +604,15 @@ const transformProductData = (apiProducts) => {
         }
       }
 
-      // Disable other browser shortcuts
       if (e.ctrlKey || e.altKey || e.metaKey) {
-        // Ctrl+R / F5
         if (e.keyCode === 82 || e.keyCode === 116) {
           e.preventDefault();
           toast.warning('Refresh is disabled in POS mode', { position: 'top-center' });
         }
-        // Ctrl+N
         if (e.keyCode === 78) e.preventDefault();
-        // Ctrl+W
         if (e.keyCode === 87) e.preventDefault();
       }
 
-      // Disable F5 refresh
       if (e.keyCode === 116) {
         e.preventDefault();
       }
@@ -622,7 +646,6 @@ const transformProductData = (apiProducts) => {
       }
     });
 
-    // Calculate VAT (assuming 12% VAT rate)
     if (vatableTotal > 0) {
       vatableAmount = vatableTotal / 1.12;
       vatAmount = vatableTotal - vatableAmount;
@@ -644,17 +667,15 @@ const transformProductData = (apiProducts) => {
     setAmountTendered(0);
     setCustomerName("");
     setTableNo("");
-    setPaymentMethod("Cash"); // Reset payment method to default
+    setPaymentMethod("Cash");
     await fetchNextTransactionNumber();
     
-    // Refresh products
     const url = selectedCategory !== "hot" 
       ? `${API_BASE_URL}/api/products/${Number(selectedCategory)}`
       : `${API_BASE_URL}/api/products`;
     const productRes = await axios.get(url);
     setProducts(productRes.data);
     
-    // Refocus on barcode input after reset
     if (barcodeInputRef.current) {
       barcodeInputRef.current.focus();
     }
@@ -667,11 +688,25 @@ const transformProductData = (apiProducts) => {
       return;
     }
 
-    // Calculate the total amount due
+    // Validate customer selection for Credit payment
+    if (paymentMethod === 'Credit') {
+      if (!customerName) {
+        toast.warning("Please select a customer for credit payment", { position: "top-center" });
+        return;
+      }
+      if (loadingCustomers) {
+        toast.warning("Customer list is still loading, please wait", { position: "top-center" });
+        return;
+      }
+      if (customers.length === 0) {
+        toast.warning("No customers available for credit payment", { position: "top-center" });
+        return;
+      }
+    }
+
     const totalDue = total - discount;
     
-    // Validate amount tendered only for completed orders (status 1)
-    if (status === 1) {
+    if (status === 1 && paymentMethod !== 'Credit') {
       if (amountTendered <= 0) {
         toast.warning("Please enter the amount tendered by the customer", { position: "top-center" });
         return;
@@ -686,7 +721,6 @@ const transformProductData = (apiProducts) => {
       }
     }
 
-    // Check stock availability (frontend validation only)
     const outOfStockItems = [];
     
     for (const item of orderItems) {
@@ -724,9 +758,8 @@ const transformProductData = (apiProducts) => {
       const today = new Date().toISOString().split("T")[0];
       const vatBreakdown = calculateVatBreakdown();
 
-      // For "Next" orders (status 2), set amount tendered to 0 and change to 0
-      const amtTendered = status === 2 ? 0 : amountTendered;
-      const amountChange = status === 2 ? 0 : change;
+      const amtTendered = (status === 2 || paymentMethod === 'Credit') ? 0 : amountTendered;
+      const amountChange = (status === 2 || paymentMethod === 'Credit') ? 0 : change;
 
       const payload = {
         transaction_number: orderNumber,
@@ -735,7 +768,8 @@ const transformProductData = (apiProducts) => {
         discount: discount,
         amt_tendered: amtTendered,
         amount_change: amountChange,
-        customer: customerName || null,
+        customer: paymentMethod === 'Credit' ? (Array.isArray(customers) ? customers.find(c => c.id === parseInt(customerName))?.name || null : null) : customerName || null,
+        customer_id: paymentMethod === 'Credit' ? parseInt(customerName) || null : null,
         table_no: tableNo || null,
         vatable_sales: vatBreakdown.vatableAmount,
         vat_amount: vatBreakdown.vatAmount,
@@ -760,11 +794,10 @@ const transformProductData = (apiProducts) => {
         }),
       };
 
-      // Single API call that handles both checkout and inventory updates
       const res = await axios.post(`${API_BASE_URL}/api/checkout`, payload);
 
       if (res.data.status === "success") {
-        if (status === 1) { // Only show print option for completed orders (status 1)
+        if (status === 1) {
           Swal.fire({
             showCancelButton: true,
             confirmButtonText: "Print Receipt",
@@ -779,11 +812,10 @@ const transformProductData = (apiProducts) => {
               handlePrint();
               await resetOrder();
             } else {
-              // Clear the order when "No, Thanks" is clicked
               await resetOrder();
             }
           });
-        } else { // For status 2 (next), just reset the order
+        } else {
           await resetOrder();
           toast.success("Order has been saved for later processing", { position: "top-center" });
         }
@@ -804,10 +836,8 @@ const transformProductData = (apiProducts) => {
       const product = products.find(p => p.id === id);
       const packaging = product.packaging || 1;
       
-      // Calculate total available retail stock
       const availableRetailStock = product.rqty + (product.wqty * packaging);
       
-      // Calculate current retail quantity in cart
       const currentCartRetailQty = prev
         .filter(item => item.id === id)
         .reduce((sum, item) => {
@@ -819,7 +849,6 @@ const transformProductData = (apiProducts) => {
           const newQty = item.quantity + 1;
           const newRetailQty = type === 'retail' ? newQty : newQty * packaging;
           
-          // Check if we have enough stock
           if (currentCartRetailQty + (type === 'retail' ? 1 : packaging) > availableRetailStock) {
             toast.warning(`Cannot add more ${product.product_name} - only ${availableRetailStock - currentCartRetailQty} retail units available`, {
               position: "top-center",
@@ -850,7 +879,7 @@ const transformProductData = (apiProducts) => {
           ? { 
               ...item, 
               quantity: item.quantity - 1,
-              stockWarning: false // Reset warning when decreasing
+              stockWarning: false
             }
           : item
       )
@@ -863,30 +892,26 @@ const transformProductData = (apiProducts) => {
     );
   };
 
-  // Add item to cart with stock check
   const addToCart = (product, type, quantity = 1) => {
     const price = type === 'retail' ? product.r_price : product.w_price;
     const unitName = type === 'retail' ? product.retail_unit_name : product.wholesale_unit_name;
     const packaging = product.packaging || 1;
 
-    // Calculate available stock in retail units
     let availableRetailStock = product.rqty;
     if (product.wqty > 0) {
       availableRetailStock += product.wqty * packaging;
     }
 
-    // Calculate current retail quantity in cart
     const currentCartRetailQty = orderItems
       .filter(item => item.id === product.id)
       .reduce((sum, item) => {
         if (item.type === 'retail') {
           return sum + item.quantity;
-        } else { // wholesale
+        } else {
           return sum + (item.quantity * packaging);
         }
       }, 0);
 
-    // Calculate remaining available retail stock
     const remainingRetailStock = availableRetailStock - currentCartRetailQty;
 
     if (remainingRetailStock <= 0) {
@@ -894,10 +919,8 @@ const transformProductData = (apiProducts) => {
       return;
     }
 
-    // Calculate required retail units for the new items
     const requiredRetailUnits = type === 'retail' ? quantity : quantity * packaging;
 
-    // Check if we have enough stock for the requested quantity
     if (requiredRetailUnits > remainingRetailStock) {
       const availableUnits = type === 'retail' 
         ? Math.floor(remainingRetailStock)
@@ -909,19 +932,13 @@ const transformProductData = (apiProducts) => {
       return;
     }
 
-    // For wholesale items, check if we have enough wholesale packages
     if (type === 'wholesale' && quantity > product.wqty) {
-      toast.warning(`Only ${product.wqty} wholesale packages available!`, {
-        position: "top-center",
-      });
+      toast.warning(`Only ${product.wqty} wholesale packages available!`, { position: "top-center" });
       return;
     }
 
-    // For retail items, check if we have enough retail units
     if (type === 'retail' && quantity > product.rqty) {
-      toast.warning(`Only ${product.rqty} retail units available!`, {
-        position: "top-center",
-      });
+      toast.warning(`Only ${product.rqty} retail units available!`, { position: "top-center" });
       return;
     }
 
@@ -966,34 +983,28 @@ const transformProductData = (apiProducts) => {
     });
   };
 
-  // Handle barcode scanning
   const handleBarcodeScan = async (barcode) => {
     if (!barcode) return;
     
     try {
-      // Use the correct API endpoint with the full path
       const res = await axios.get(`${API_BASE_URL}/api/products-by-barcode/${barcode}`);
       
-      // Check if response contains a product object and type
       if (res.data && res.data.product && res.data.type) {
         const { product, type } = res.data;
         
-        // Calculate total available retail stock
         const packaging = product.packaging || 1;
         const availableRetailStock = product.rqty + (product.wqty * packaging);
         
-        // Calculate current retail quantity in cart
         const currentCartRetailQty = orderItems
           .filter(item => item.id === product.id)
           .reduce((sum, item) => {
             if (item.type === 'retail') {
               return sum + item.quantity;
-            } else { // wholesale
+            } else {
               return sum + (item.quantity * packaging);
             }
           }, 0);
         
-        // Calculate remaining available retail stock
         const remainingRetailStock = availableRetailStock - currentCartRetailQty;
         
         if (remainingRetailStock <= 0) {
@@ -1001,15 +1012,12 @@ const transformProductData = (apiProducts) => {
           return;
         }
         
-        // If barcode was found as wholesale type
         if (type === 'wholesale') {
-          // Check if we have enough wholesale stock
           if (product.wqty <= 0) {
             toast.warning(`No wholesale packages of ${product.product_name} available!`, { position: "top-center" });
             return;
           }
           
-          // Check if at least 1 full package can be added
           if (remainingRetailStock < packaging) {
             toast.warning(`Not enough stock for a full wholesale package (needs ${packaging} retail units)`, {
               position: "top-center",
@@ -1021,9 +1029,7 @@ const transformProductData = (apiProducts) => {
           return;
         }
         
-        // If barcode was found as retail type
         if (type === 'retail') {
-          // Check if we have enough retail stock
           if (product.rqty <= 0) {
             toast.warning(`No retail units of ${product.product_name} available!`, { position: "top-center" });
             return;
@@ -1041,7 +1047,6 @@ const transformProductData = (apiProducts) => {
     }
   };
 
-  // Fetch categories
   useEffect(() => {
     axios
       .get(`${API_BASE_URL}/api/categories`)
@@ -1050,7 +1055,6 @@ const transformProductData = (apiProducts) => {
       .finally(() => setLoadingCategories(false));
   }, [API_BASE_URL]);
 
-  // Fetch products
   useEffect(() => {
     setLoadingProducts(true);
     let url = `${API_BASE_URL}/api/products`;
@@ -1064,7 +1068,6 @@ const transformProductData = (apiProducts) => {
       .finally(() => setLoadingProducts(false));
   }, [selectedCategory, API_BASE_URL]);
 
-  // Auto-focus barcode input on component mount
   useEffect(() => {
     if (barcodeInputRef.current) {
       barcodeInputRef.current.focus();
@@ -1074,14 +1077,21 @@ const transformProductData = (apiProducts) => {
   if (loadingCategories) return <div>Loading categories...</div>;
 
   const allCategories = [fixedCategory, ...categories];
-
   const vatBreakdown = calculateVatBreakdown();
   const total = vatBreakdown.total;
   const change = Math.max(0, amountTendered - (total - discount));
 
+  // Get customer name for display in PrintOrder
+  const getCustomerDisplayName = () => {
+    if (paymentMethod === 'Credit') {
+      const customer = Array.isArray(customers) ? customers.find(c => c.id === parseInt(customerName)) : null;
+      return customer ? customer.name : '';
+    }
+    return customerName;
+  };
+
   return (
     <div className="d-flex">
-      {/* Toast Container */}
       <ToastContainer
         position="top-center"
         autoClose={3000}
@@ -1095,7 +1105,6 @@ const transformProductData = (apiProducts) => {
         theme="light"
       />
       
-      {/* Payment Method Modal */}
       <PaymentMethodModal
         isOpen={showPaymentModal}
         onClose={() => setShowPaymentModal(false)}
@@ -1103,17 +1112,15 @@ const transformProductData = (apiProducts) => {
         setPaymentMethod={setPaymentMethod}
       />
       
-      {/* Product Search Modal */}
       <ProductSearchModal
         isOpen={showProductModal}
         onClose={() => setShowProductModal(false)}
         allProducts={allProducts}
         addToCart={addToCart}
         formatCurrency={formatCurrency}
-        orderItems={orderItems} // Pass the current cart items
+        orderItems={orderItems}
       />
       
-      {/* Hidden PrintOrder Component */}
       <div style={{ display: "none" }}>
         <PrintOrder
           ref={componentRef}
@@ -1125,7 +1132,7 @@ const transformProductData = (apiProducts) => {
           total={total - discount}
           amountTendered={amountTendered}
           change={change}
-          customerName={customerName}
+          customerName={getCustomerDisplayName()}
           tableNo={tableNo}
           vatableSales={vatBreakdown.vatableAmount}
           vatAmount={vatBreakdown.vatAmount}
@@ -1134,9 +1141,7 @@ const transformProductData = (apiProducts) => {
         />
       </div>
 
-      {/* Main Menu Content */}
       <div className="flex-grow-1 container-fluid cashier-body">
-        {/* Category Buttons */}
         <div className="d-flex flex-wrap gap-2 mb-3">
           {allCategories.map((category) => (
             <button
@@ -1152,7 +1157,6 @@ const transformProductData = (apiProducts) => {
           ))}
         </div>
 
-        {/* Products */}
         <div className="menu-scroll">
           <div className="row">
             {loadingProducts ? (
@@ -1177,8 +1181,6 @@ const transformProductData = (apiProducts) => {
                     <div className="font-weight-bold product-name-menu">
                       {product.product_name}
                     </div>
-
-                    {/* Retail Price Button */}
                     {product.r_price && (
                       <button
                         className={`btn btn-sm btn-primary primary-radius w-100 mt-2 button-price d-flex justify-content-between align-items-center m-2 ${
@@ -1199,7 +1201,6 @@ const transformProductData = (apiProducts) => {
                         </span>
                       </button>
                     )}
-                    {/* Wholesale Price Button */}
                     {product.w_price && product.w_price > 0 && product.packaging > 1 && (
                       <button
                         className={`btn btn-sm btn-success primary-radius w-100 mt-2 button-price d-flex justify-content-between align-items-center m-2 ${
@@ -1233,7 +1234,6 @@ const transformProductData = (apiProducts) => {
         </div>
       </div>
 
-      {/* Order Sidebar */}
       <aside className="order-sidebar">
         <div className="order-box">
           <div className="order-header">
@@ -1248,7 +1248,6 @@ const transformProductData = (apiProducts) => {
             </span>
           </div>
 
-          {/* Customer & Barcode Input */}
           <div className="mb-3">
             <div className="input-group input-group-sm mb-2">
               <span className="input-group-text bg-light border-0">
@@ -1273,16 +1272,32 @@ const transformProductData = (apiProducts) => {
               <span className="input-group-text bg-light border-0 text-primary">
                 <i className="fas fa-user text-dark"></i>
               </span>
-              <input
-                type="text"
-                className="form-control border-0"
-                placeholder="Customer Name"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-              />
+              {paymentMethod === 'Credit' ? (
+                <select
+                  className="form-control border-0"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  required
+                  disabled={loadingCustomers}
+                >
+                  <option value="">{loadingCustomers ? 'Loading customers...' : 'Select a customer'}</option>
+                  {customers.map(customer => (
+                    <option key={customer.id} value={customer.id}>
+                      {customer.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  className="form-control border-0"
+                  placeholder="Customer Name"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                />
+              )}
             </div>
             
-            {/* Payment Method Display */}
             <div className="input-group input-group-sm mb-2">
               <span className="input-group-text bg-light border-0">
                 <i className="fas fa-credit-card text-dark"></i>
@@ -1307,7 +1322,6 @@ const transformProductData = (apiProducts) => {
             </div>
           </div>
 
-          {/* Order Items */}
           <div className="order-scrollable flex-grow-1 overflow-auto">
             {orderItems.map((item) => (
               <OrderItem
@@ -1321,14 +1335,12 @@ const transformProductData = (apiProducts) => {
             ))}
           </div>
 
-          {/* Totals & Actions */}
           <div className="pt-3 border-top mt-3">
             <div className="d-flex justify-content-between mb-2">
               <span className="span-text">Subtotal:</span>
               <strong className="text-dark">{formatCurrency(total)}</strong>
             </div>
             
-            {/* VAT Breakdown (only show if there are VATable items) */}
             {vatBreakdown.vatableAmount > 0 && (
               <>
                 <div className="d-flex justify-content-between mb-1 small">
@@ -1342,7 +1354,6 @@ const transformProductData = (apiProducts) => {
               </>
             )}
             
-            {/* Non-VAT Breakdown (only show if there are non-VATable items) */}
             {vatBreakdown.nonVatableTotal > 0 && (
               <div className="d-flex justify-content-between mb-1 small">
                 <span className="span-text">Non-VATable Sales:</span>
@@ -1387,7 +1398,7 @@ const transformProductData = (apiProducts) => {
               <button
                 className="btn btn-primary w-100 primary-radius"
                 onClick={() => handleCheckout(1)}
-                disabled={loadingOrderNumber || orderItems.length === 0}
+                disabled={loadingOrderNumber || orderItems.length === 0 || (paymentMethod === 'Credit' && loadingCustomers)}
               >
                 {loadingOrderNumber ? (
                   <span>Loading...</span>
@@ -1401,9 +1412,8 @@ const transformProductData = (apiProducts) => {
                 className="btn btn-outline-danger w-100 primary-radius"
                 onClick={async () => {
                   await handleCheckout(2);
-                  // The resetOrder is already called inside handleCheckout for status 2
                 }}
-                disabled={loadingOrderNumber || orderItems.length === 0}
+                disabled={loadingOrderNumber || orderItems.length === 0 || (paymentMethod === 'Credit' && loadingCustomers)}
               >
                 {loadingOrderNumber ? (
                   <span>Loading...</span>

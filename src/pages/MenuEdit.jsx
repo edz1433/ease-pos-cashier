@@ -19,7 +19,8 @@ const PaymentMethodModal = ({ isOpen, onClose, paymentMethod, setPaymentMethod }
   const methods = [
     { id: 'cash', name: 'Cash', icon: 'fas fa-money-bill-wave' },
     { id: 'gcash', name: 'GCash', icon: 'fas fa-mobile-alt' },
-    { id: 'bank', name: 'Bank Transfer', icon: 'fas fa-university' }
+    { id: 'bank', name: 'Bank Transfer', icon: 'fas fa-university' },
+    { id: 'credit', name: 'Credit', icon: 'fas fa-credit-card' }
   ];
 
   return (
@@ -51,7 +52,7 @@ const PaymentMethodModal = ({ isOpen, onClose, paymentMethod, setPaymentMethod }
           </div>
         </div>
         <div className="modal-footer">
-          <small className="text-muted">Press F2 to open this dialog</small>
+          <small className="text-muted">Press F2 or F3 to open this dialog</small>
         </div>
       </div>
     </div>
@@ -424,7 +425,7 @@ export default function MenuEdit() {
   const { saleId } = useParams();
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
-  const [allProducts, setAllProducts] = useState([]); // For search modal
+  const [allProducts, setAllProducts] = useState([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("hot");
@@ -432,8 +433,9 @@ export default function MenuEdit() {
   const [saleDate, setSaleDate] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("Cash");
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [showProductModal, setShowProductModal] = useState(false); // For product search modal
-
+  const [showProductModal, setShowProductModal] = useState(false);
+  const [customers, setCustomers] = useState([]);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
   const [orderItems, setOrderItems] = useState([]);
   const [discount, setDiscount] = useState(0);
   const [amountTendered, setAmountTendered] = useState(0);
@@ -484,7 +486,6 @@ export default function MenuEdit() {
       }
     });
 
-    // Calculate VAT (assuming 12% VAT rate)
     if (vatableTotal > 0) {
       vatableAmount = vatableTotal / 1.12;
       vatAmount = vatableTotal - vatableAmount;
@@ -503,8 +504,6 @@ export default function MenuEdit() {
   const fetchAllProducts = async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/api/all-products`);
-      
-      // Transform the API data to match expected structure
       const transformedProducts = transformProductData(response.data);
       setAllProducts(transformedProducts);
     } catch (error) {
@@ -512,6 +511,36 @@ export default function MenuEdit() {
       toast.error("Failed to load products for search", { position: "top-center" });
     }
   };
+
+  // Fetch customers when payment method is Credit
+  useEffect(() => {
+    if (paymentMethod === 'Credit') {
+      const fetchCustomers = async () => {
+        try {
+          setLoadingCustomers(true);
+          const response = await axios.get(`${API_BASE_URL}/api/customers`);
+          const customerData = Array.isArray(response.data) 
+            ? response.data 
+            : response.data?.data || [];
+          if (!Array.isArray(customerData)) {
+            console.error("Customers API response is not an array:", customerData);
+            throw new Error("Invalid customers data format");
+          }
+          setCustomers(customerData);
+        } catch (error) {
+          console.error("Error fetching customers:", error);
+          toast.error("Failed to load customers for credit payment", { position: "top-center" });
+          setCustomers([]);
+        } finally {
+          setLoadingCustomers(false);
+        }
+      };
+      fetchCustomers();
+    } else {
+      setCustomers([]);
+      if (customerName !== "") setCustomerName("");
+    }
+  }, [paymentMethod, API_BASE_URL]);
 
   // Helper function to transform API data
   const transformProductData = (apiProducts) => {
@@ -530,16 +559,14 @@ export default function MenuEdit() {
           image: product.image,
           retail_unit_name: product.unit_name || 'pc',
           wholesale_unit_name: product.unit_name || 'pkg',
-          // Initialize both price types as 0
           r_price: 0,
           w_price: 0,
           rqty: 0,
           wqty: 0,
-          type: 'both' // Default to both if we have both types
+          type: 'both'
         };
       }
       
-      // Update the product based on type
       if (product.type === 'retail') {
         productMap[product.id].r_price = parseFloat(product.price) || 0;
         productMap[product.id].rqty = parseInt(product.qty) || 0;
@@ -549,7 +576,6 @@ export default function MenuEdit() {
         productMap[product.id].wholesale_unit_name = product.unit_name || 'pkg';
       }
       
-      // Determine the product type
       if (productMap[product.id].r_price > 0 && productMap[product.id].w_price > 0) {
         productMap[product.id].type = 'both';
       } else if (productMap[product.id].r_price > 0) {
@@ -567,29 +593,24 @@ export default function MenuEdit() {
     if (!barcode) return;
     
     try {
-      // Use the correct API endpoint with the full path
       const res = await axios.get(`${API_BASE_URL}/api/products-by-barcode/${barcode}`);
       
-      // Check if response contains a product object and type
       if (res.data && res.data.product && res.data.type) {
         const { product, type } = res.data;
         
-        // Calculate total available retail stock
         const packaging = product.packaging || 1;
         const availableRetailStock = product.rqty + (product.wqty * packaging);
         
-        // Calculate current retail quantity in cart
         const currentCartRetailQty = orderItems
           .filter(item => item.id === product.id)
           .reduce((sum, item) => {
             if (item.type === 'retail') {
               return sum + item.quantity;
-            } else { // wholesale
+            } else {
               return sum + (item.quantity * packaging);
             }
           }, 0);
         
-        // Calculate remaining available retail stock
         const remainingRetailStock = availableRetailStock - currentCartRetailQty;
         
         if (remainingRetailStock <= 0) {
@@ -597,15 +618,12 @@ export default function MenuEdit() {
           return;
         }
         
-        // If barcode was found as wholesale type
         if (type === 'wholesale') {
-          // Check if we have enough wholesale stock
           if (product.wqty <= 0) {
             toast.warning(`No wholesale packages of ${product.product_name} available!`, { position: "top-center" });
             return;
           }
           
-          // Check if at least 1 full package can be added
           if (remainingRetailStock < packaging) {
             toast.warning(`Not enough stock for a full wholesale package (needs ${packaging} retail units)`, {
               position: "top-center",
@@ -617,9 +635,7 @@ export default function MenuEdit() {
           return;
         }
         
-        // If barcode was found as retail type
         if (type === 'retail') {
-          // Check if we have enough retail stock
           if (product.rqty <= 0) {
             toast.warning(`No retail units of ${product.product_name} available!`, { position: "top-center" });
             return;
@@ -648,16 +664,14 @@ export default function MenuEdit() {
       if (response.data.status === "success") {
         const { sale, sales_orders } = response.data.data;
         
-        // Set order details
         setOrderNumber(sale.transaction_number);
         setDiscount(sale.discount);
         setAmountTendered(sale.amt_tendered);
-        setCustomerName(sale.customer || "");
+        setCustomerName(sale.customer_id ? sale.customer_id.toString() : sale.customer || "");
         setTableNo(sale.table_no || "");
         setSaleDate(sale.date);
         setPaymentMethod(sale.payment_method || "Cash");
         
-        // Convert sales orders to order items format
         const items = sales_orders.map(order => ({
           id: order.product_id,
           name: order.product.product_name,
@@ -672,7 +686,7 @@ export default function MenuEdit() {
           packaging: order.packaging,
           stockWarning: false,
           availableStock: order.price_type === 'retail' 
-            ? order.product.rqty + order.quantity // Include current order quantity in available stock
+            ? order.product.rqty + order.quantity
             : order.product.wqty + order.quantity
         }));
         
@@ -726,31 +740,57 @@ export default function MenuEdit() {
       return;
     }
 
-    // Calculate the total amount due
-    const totalDue = total - discount;
-    
-    // Validate amount tendered
-    if (amountTendered <= 0) {
-      Swal.fire({
-        title: "Payment Required",
-        text: "Please enter the amount tendered by the customer",
-        icon: "warning",
-        confirmButtonColor: "#fc204f",
-      });
-      return;
-    }
-    
-    if (amountTendered < totalDue) {
-      Swal.fire({
-        title: "Insufficient Payment",
-        text: `Amount tendered (${formatCurrency(amountTendered)}) is less than the total due (${formatCurrency(totalDue)})`,
-        icon: "warning",
-        confirmButtonColor: "#fc204f",
-      });
-      return;
+    if (paymentMethod === 'Credit') {
+      if (!customerName) {
+        Swal.fire({
+          title: "Customer Required",
+          text: "Please select a customer for credit payment",
+          icon: "warning",
+          confirmButtonColor: "#fc204f",
+        });
+        return;
+      }
+      if (loadingCustomers) {
+        Swal.fire({
+          title: "Loading",
+          text: "Customer list is still loading, please wait",
+          icon: "warning",
+          confirmButtonColor: "#fc204f",
+        });
+        return;
+      }
+      if (customers.length === 0) {
+        Swal.fire({
+          title: "No Customers",
+          text: "No customers available for credit payment",
+          icon: "warning",
+          confirmButtonColor: "#fc204f",
+        });
+        return;
+      }
+    } else {
+      const totalDue = total - discount;
+      if (amountTendered <= 0) {
+        Swal.fire({
+          title: "Payment Required",
+          text: "Please enter the amount tendered by the customer",
+          icon: "warning",
+          confirmButtonColor: "#fc204f",
+        });
+        return;
+      }
+      
+      if (amountTendered < totalDue) {
+        Swal.fire({
+          title: "Insufficient Payment",
+          text: `Amount tendered (${formatCurrency(amountTendered)}) is less than the total due (${formatCurrency(totalDue)})`,
+          icon: "warning",
+          confirmButtonColor: "#fc204f",
+        });
+        return;
+      }
     }
 
-    // Check stock availability (frontend validation only)
     const outOfStockItems = [];
     
     for (const item of orderItems) {
@@ -761,12 +801,10 @@ export default function MenuEdit() {
       const totalAvailable = product.rqty + (product.wqty * packaging);
       const required = item.type === 'retail' ? item.quantity : item.quantity * packaging;
 
-      // Find original quantity in the order (if any)
       const originalItem = originalOrder?.items.find(i => i.id === item.id && i.type === item.type);
       const originalQty = originalItem?.quantity || 0;
       const originalRetailQty = originalItem?.type === 'retail' ? originalQty : originalQty * packaging;
 
-      // Calculate net change in quantity
       const currentRetailQty = item.type === 'retail' ? item.quantity : item.quantity * packaging;
       const netChange = currentRetailQty - originalRetailQty;
 
@@ -797,15 +835,16 @@ export default function MenuEdit() {
 
     try {
       const vatBreakdown = calculateVatBreakdown();
-      const change = Math.max(0, amountTendered - (vatBreakdown.total - discount));
+      const change = paymentMethod === 'Credit' ? 0 : Math.max(0, amountTendered - (vatBreakdown.total - discount));
 
       const payload = {
         transaction_number: orderNumber,
         total: vatBreakdown.total,
         discount: discount,
-        amt_tendered: amountTendered,
+        amt_tendered: paymentMethod === 'Credit' ? 0 : amountTendered,
         amount_change: change,
-        customer: customerName || null,
+        customer: paymentMethod === 'Credit' ? (Array.isArray(customers) ? customers.find(c => c.id === parseInt(customerName))?.name || null : null) : customerName || null,
+        customer_id: paymentMethod === 'Credit' ? parseInt(customerName) || null : null,
         table_no: tableNo || null,
         vatable_sales: vatBreakdown.vatableAmount,
         vat_amount: vatBreakdown.vatAmount,
@@ -829,7 +868,6 @@ export default function MenuEdit() {
         }),
       };
 
-      // API call to update the order
       const res = await axios.put(`${API_BASE_URL}/api/update-sales/${saleId}`, payload);
 
       if (res.data.status === "success") {
@@ -846,7 +884,6 @@ export default function MenuEdit() {
           if (result.isConfirmed) {
             handlePrint();
           }
-          // Refresh the data to get updated stock levels
           await fetchSaleData();
         });
       } else {
@@ -863,16 +900,14 @@ export default function MenuEdit() {
     }
   };
 
-  // Quantity management functions (same as Menu.jsx)
+  // Quantity management functions
   const increaseQty = (id, type) => {
     setOrderItems((prev) => {
       const product = products.find(p => p.id === id);
       const packaging = product.packaging || 1;
       
-      // Calculate total available retail stock
       const availableRetailStock = product.rqty + (product.wqty * packaging);
       
-      // Calculate current retail quantity in cart
       const currentCartRetailQty = prev
         .filter(item => item.id === id)
         .reduce((sum, item) => {
@@ -884,7 +919,6 @@ export default function MenuEdit() {
           const newQty = item.quantity + 1;
           const newRetailQty = type === 'retail' ? newQty : newQty * packaging;
           
-          // Check if we have enough stock
           if (currentCartRetailQty + (type === 'retail' ? 1 : packaging) > availableRetailStock) {
             Swal.fire({
               title: "Insufficient Stock",
@@ -918,7 +952,7 @@ export default function MenuEdit() {
           ? { 
               ...item, 
               quantity: item.quantity - 1,
-              stockWarning: false // Reset warning when decreasing
+              stockWarning: false
             }
           : item
       )
@@ -937,24 +971,21 @@ export default function MenuEdit() {
     const unitName = type === 'retail' ? product.retail_unit_name : product.wholesale_unit_name;
     const packaging = product.packaging || 1;
 
-    // Calculate available stock in retail units
     let availableRetailStock = product.rqty;
     if (product.wqty > 0) {
       availableRetailStock += product.wqty * packaging;
     }
 
-    // Calculate current retail quantity in cart
     const currentCartRetailQty = orderItems
       .filter(item => item.id === product.id)
       .reduce((sum, item) => {
         if (item.type === 'retail') {
           return sum + item.quantity;
-        } else { // wholesale
+        } else {
           return sum + (item.quantity * packaging);
         }
       }, 0);
 
-    // Calculate remaining available retail stock
     const remainingRetailStock = availableRetailStock - currentCartRetailQty;
 
     if (remainingRetailStock <= 0) {
@@ -967,10 +998,8 @@ export default function MenuEdit() {
       return;
     }
 
-    // Calculate required retail units for the new items
     const requiredRetailUnits = type === 'retail' ? quantity : quantity * packaging;
 
-    // Check if we have enough stock for the requested quantity
     if (requiredRetailUnits > remainingRetailStock) {
       const availableUnits = type === 'retail' 
         ? Math.floor(remainingRetailStock)
@@ -985,7 +1014,6 @@ export default function MenuEdit() {
       return;
     }
 
-    // For wholesale items, check if we have enough wholesale packages
     if (type === 'wholesale' && quantity > product.wqty) {
       Swal.fire({
         title: "Insufficient Stock",
@@ -996,7 +1024,6 @@ export default function MenuEdit() {
       return;
     }
 
-    // For retail items, check if we have enough retail units
     if (type === 'retail' && quantity > product.rqty) {
       Swal.fire({
         title: "Insufficient Stock",
@@ -1048,10 +1075,9 @@ export default function MenuEdit() {
     });
   };
 
-  //DisableBrowserShortcuts
+  // DisableBrowserShortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Disable F1 to F12
       if (e.keyCode >= 112 && e.keyCode <= 123) {
         e.preventDefault();
         e.stopPropagation();
@@ -1059,13 +1085,18 @@ export default function MenuEdit() {
         switch (e.keyCode) {
           case 112: // F1
             setShowProductModal(true);
-            fetchAllProducts(); // Load products when opening modal
+            fetchAllProducts();
             console.log('F1 pressed - Product Search modal opened');
             break;
 
           case 113: // F2
             setShowPaymentModal(true);
             console.log('F2 pressed - Payment Method modal opened');
+            break;
+
+          case 114: // F3
+            setPaymentMethod('Credit');
+            console.log('F3 pressed - Payment Method modal opened with Credit selected');
             break;
 
           case 115: // F4
@@ -1078,20 +1109,15 @@ export default function MenuEdit() {
         }
       }
 
-      // Disable other browser shortcuts
       if (e.ctrlKey || e.altKey || e.metaKey) {
-        // Ctrl+R / F5
         if (e.keyCode === 82 || e.keyCode === 116) {
           e.preventDefault();
           toast.warning('Refresh is disabled in POS mode', { position: 'top-center' });
         }
-        // Ctrl+N
         if (e.keyCode === 78) e.preventDefault();
-        // Ctrl+W
         if (e.keyCode === 87) e.preventDefault();
       }
 
-      // Disable F5 refresh
       if (e.keyCode === 116) {
         e.preventDefault();
       }
@@ -1141,6 +1167,15 @@ export default function MenuEdit() {
     }
   }, []);
 
+  // Get customer name for display in PrintOrder
+  const getCustomerDisplayName = () => {
+    if (paymentMethod === 'Credit') {
+      const customer = Array.isArray(customers) ? customers.find(c => c.id === parseInt(customerName)) : null;
+      return customer ? customer.name : '';
+    }
+    return customerName;
+  };
+
   if (!saleId) return <div>Error: No order ID provided</div>;
   if (isLoading) return <div>Loading order data...</div>;
   if (loadingCategories) return <div>Loading categories...</div>;
@@ -1149,11 +1184,10 @@ export default function MenuEdit() {
 
   const vatBreakdown = calculateVatBreakdown();
   const total = vatBreakdown.total;
-  const change = Math.max(0, amountTendered - (total - discount));
+  const change = paymentMethod === 'Credit' ? 0 : Math.max(0, amountTendered - (total - discount));
 
   return (
     <div className="d-flex">
-      {/* Toast Container */}
       <ToastContainer
         position="top-center"
         autoClose={3000}
@@ -1167,7 +1201,6 @@ export default function MenuEdit() {
         theme="light"
       />
       
-      {/* Payment Method Modal */}
       <PaymentMethodModal
         isOpen={showPaymentModal}
         onClose={() => setShowPaymentModal(false)}
@@ -1175,17 +1208,15 @@ export default function MenuEdit() {
         setPaymentMethod={setPaymentMethod}
       />
       
-      {/* Product Search Modal */}
       <ProductSearchModal
         isOpen={showProductModal}
         onClose={() => setShowProductModal(false)}
         allProducts={allProducts}
         addToCart={addToCart}
         formatCurrency={formatCurrency}
-        orderItems={orderItems} // Pass the current cart items
+        orderItems={orderItems}
       />
       
-      {/* Hidden PrintOrder Component */}
       <div style={{ display: "none" }}>
         <PrintOrder
           ref={componentRef}
@@ -1195,9 +1226,9 @@ export default function MenuEdit() {
           subtotal={total}
           discount={discount}
           total={total - discount}
-          amountTendered={amountTendered}
+          amountTendered={paymentMethod === 'Credit' ? 0 : amountTendered}
           change={change}
-          customerName={customerName}
+          customerName={getCustomerDisplayName()}
           tableNo={tableNo}
           vatableSales={vatBreakdown.vatableAmount}
           vatAmount={vatBreakdown.vatAmount}
@@ -1206,9 +1237,7 @@ export default function MenuEdit() {
         />
       </div>
 
-      {/* Main Menu Content */}
       <div className="flex-grow-1 container-fluid cashier-body">
-        {/* Category Buttons */}
         <div className="d-flex flex-wrap gap-2 mb-3">
           {allCategories.map((category) => (
             <button
@@ -1224,7 +1253,6 @@ export default function MenuEdit() {
           ))}
         </div>
 
-        {/* Products */}
         <div className="menu-scroll">
           <div className="row">
             {loadingProducts ? (
@@ -1249,8 +1277,6 @@ export default function MenuEdit() {
                     <div className="font-weight-bold product-name-menu">
                       {product.product_name}
                     </div>
-
-                    {/* Retail Price Button */}
                     {product.r_price && (
                       <button
                         className={`btn btn-sm btn-primary primary-radius w-100 mt-2 button-price d-flex justify-content-between align-items-center m-2 ${
@@ -1271,7 +1297,6 @@ export default function MenuEdit() {
                         </span>
                       </button>
                     )}
-                    {/* Wholesale Price Button */}
                     {product.w_price && product.w_price > 0 && product.packaging > 1 && (
                       <button
                         className={`btn btn-sm btn-success primary-radius w-100 mt-2 button-price d-flex justify-content-between align-items-center m-2 ${
@@ -1305,7 +1330,6 @@ export default function MenuEdit() {
         </div>
       </div>
 
-      {/* Order Sidebar */}
       <aside className="order-sidebar">
         <div className="order-box">
           <div className="order-header">
@@ -1315,7 +1339,6 @@ export default function MenuEdit() {
             </span>
           </div>
 
-          {/* Customer & Barcode Input */}
           <div className="mb-3">
             <div className="input-group input-group-sm mb-2">
               <span className="input-group-text bg-light border-0">
@@ -1340,16 +1363,32 @@ export default function MenuEdit() {
               <span className="input-group-text bg-light border-0 text-primary">
                 <i className="fas fa-user text-dark"></i>
               </span>
-              <input
-                type="text"
-                className="form-control border-0"
-                placeholder="Customer Name"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-              />
+              {paymentMethod === 'Credit' ? (
+                <select
+                  className="form-control border-0"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  required
+                  disabled={loadingCustomers}
+                >
+                  <option value="">{loadingCustomers ? 'Loading customers...' : 'Select a customer'}</option>
+                  {customers.map(customer => (
+                    <option key={customer.id} value={customer.id}>
+                      {customer.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  className="form-control border-0"
+                  placeholder="Customer Name"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                />
+              )}
             </div>
             
-            {/* Payment Method Display */}
             <div className="input-group input-group-sm mb-2">
               <span className="input-group-text bg-light border-0">
                 <i className="fas fa-credit-card text-dark"></i>
@@ -1374,7 +1413,6 @@ export default function MenuEdit() {
             </div>
           </div>
 
-          {/* Order Items */}
           <div className="order-scrollable flex-grow-1 overflow-auto">
             {orderItems.map((item) => (
               <OrderItem
@@ -1388,14 +1426,12 @@ export default function MenuEdit() {
             ))}
           </div>
 
-          {/* Totals & Actions */}
           <div className="pt-3 border-top mt-3">
             <div className="d-flex justify-content-between mb-2">
               <span className="span-text">Subtotal:</span>
               <strong className="text-dark">{formatCurrency(total)}</strong>
             </div>
             
-            {/* VAT Breakdown */}
             {vatBreakdown.vatableAmount > 0 && (
               <>
                 <div className="d-flex justify-content-between mb-1 small">
@@ -1409,7 +1445,6 @@ export default function MenuEdit() {
               </>
             )}
             
-            {/* Non-VAT Breakdown */}
             {vatBreakdown.nonVatableTotal > 0 && (
               <div className="d-flex justify-content-between mb-1 small">
                 <span className="span-text">Non-VATable Sales:</span>
@@ -1454,7 +1489,7 @@ export default function MenuEdit() {
               <button
                 className="btn btn-primary w-100 primary-radius"
                 onClick={handleUpdateOrder}
-                disabled={loadingOrderNumber || orderItems.length === 0}
+                disabled={loadingOrderNumber || orderItems.length === 0 || (paymentMethod === 'Credit' && loadingCustomers)}
               >
                 <i className="fas fa-save"></i> Update Order
               </button>

@@ -12,6 +12,337 @@ import 'react-toastify/dist/ReactToastify.css';
 axios.defaults.withCredentials = true;
 axios.defaults.withXSRFToken = true;
 
+// Payment Method Modal Component
+const PaymentMethodModal = ({ isOpen, onClose, paymentMethod, setPaymentMethod }) => {
+  if (!isOpen) return null;
+
+  const methods = [
+    { id: 'cash', name: 'Cash', icon: 'fas fa-money-bill-wave' },
+    { id: 'gcash', name: 'GCash', icon: 'fas fa-mobile-alt' },
+    { id: 'bank', name: 'Bank Transfer', icon: 'fas fa-university' }
+  ];
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h5 className="modal-title">Select Payment Method</h5>
+          <button type="button" className="close-btn" onClick={onClose}>
+            <i className="fas fa-times"></i>
+          </button>
+        </div>
+        <div className="modal-body">
+          <div className="payment-methods">
+            {methods.map((method) => (
+              <div
+                key={method.id}
+                className={`payment-method ${paymentMethod === method.name ? 'selected' : ''}`}
+                onClick={() => {
+                  setPaymentMethod(method.name);
+                  onClose();
+                }}
+              >
+                <div className="payment-icon">
+                  <i className={method.icon}></i>
+                </div>
+                <div className="payment-name">{method.name}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="modal-footer">
+          <small className="text-muted">Press F2 to open this dialog</small>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Product Search Modal Component
+const ProductSearchModal = ({ 
+  isOpen, 
+  onClose, 
+  allProducts, 
+  addToCart, 
+  formatCurrency, 
+  orderItems
+}) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [quantity, setQuantity] = useState(1);
+  const [priceType, setPriceType] = useState('retail');
+
+  if (!isOpen) return null;
+
+  // Filter products based on search term
+  const filteredProducts = allProducts.filter(product =>
+    product.product_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    product.barcode.includes(searchTerm)
+  );
+
+  const handleProductSelect = (product) => {
+    setSelectedProduct(product);
+    setQuantity(1);
+    // Set default price type based on product availability
+    if (product.r_price && product.r_price > 0) {
+      setPriceType('retail');
+    } else if (product.w_price && product.w_price > 0) {
+      setPriceType('wholesale');
+    }
+  };
+
+  // Calculate current retail quantity in cart for a specific product
+  const getCurrentCartRetailQty = (productId) => {
+    const packaging = allProducts.find(p => p.id === productId)?.packaging || 1;
+    
+    return orderItems
+      .filter(item => item.id === productId)
+      .reduce((sum, item) => {
+        if (item.type === 'retail') {
+          return sum + item.quantity;
+        } else { // wholesale
+          return sum + (item.quantity * packaging);
+        }
+      }, 0);
+  };
+
+  // Calculate available stock considering what's already in cart
+  const getAvailableStockConsideringCart = (product, type) => {
+    const packaging = product.packaging || 1;
+    const currentCartRetailQty = getCurrentCartRetailQty(product.id);
+    
+    if (type === 'retail') {
+      const totalAvailable = product.rqty + (product.wqty * packaging);
+      return Math.max(0, totalAvailable - currentCartRetailQty);
+    } else {
+      // For wholesale, we need to calculate how many full packages are available
+      const totalAvailableRetail = product.rqty + (product.wqty * packaging);
+      const availableRetailAfterCart = totalAvailableRetail - currentCartRetailQty;
+      return Math.max(0, Math.floor(availableRetailAfterCart / packaging));
+    }
+  };
+
+  const handleAddToCart = () => {
+    if (!selectedProduct) return;
+    
+    const packaging = selectedProduct.packaging || 1;
+    const availableStock = getAvailableStockConsideringCart(selectedProduct, priceType);
+    
+    if (quantity <= 0) {
+      toast.warning("Please enter a valid quantity", { position: "top-center" });
+      return;
+    }
+    
+    if (quantity > availableStock) {
+      toast.warning(`Only ${availableStock} ${priceType === 'retail' ? 'retail units' : 'wholesale packages'} available!`, {
+        position: "top-center",
+      });
+      return;
+    }
+
+    // Add the product to cart with selected quantity and price type
+    addToCart(selectedProduct, priceType, quantity);
+    
+    // Close the modal
+    onClose();
+    setSelectedProduct(null);
+    
+    // Show success message
+    toast.success(`${quantity} ${selectedProduct.product_name} added to cart`, {
+      position: "top-center",
+      autoClose: 1000,
+    });
+  };
+
+  const getPrice = (product, type) => {
+    if (type === 'retail') {
+      return product.r_price || 0;
+    } else {
+      return product.w_price || 0;
+    }
+  };
+
+  // Get max quantity based on selected price type and current cart
+  const getMaxQuantity = (product, type) => {
+    return getAvailableStockConsideringCart(product, type);
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={() => { setSelectedProduct(null); onClose(); }}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '700px' }}>
+        <div className="modal-header">
+          <h5 className="modal-title">Search Products (F1)</h5>
+          <button type="button" className="close-btn" onClick={() => { setSelectedProduct(null); onClose(); }}>
+            <i className="fas fa-times"></i>
+          </button>
+        </div>
+        <div className="modal-body">
+          <div className="mb-3">
+            <input
+              type="text"
+              className="form-control"
+              placeholder="Search by name or barcode..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              autoFocus
+            />
+          </div>
+
+          {selectedProduct ? (
+            <div className="selected-product-details">
+              <h6>Selected Product:</h6>
+              <div className="card p-3 mb-3">
+                <div className="row">
+                  <div className="col-md-4">
+                    <img
+                      src={`${process.env.REACT_APP_API_BASE_URL}/storage/uploads/products/${selectedProduct.image}` || "/assets/img/placeholder.png"}
+                      alt={selectedProduct.product_name}
+                      className="img-fluid rounded"
+                      style={{ maxHeight: '150px', objectFit: 'cover' }}
+                    />
+                  </div>
+                  <div className="col-md-8">
+                    <h5>{selectedProduct.product_name}</h5>
+                    <p className="mb-1">Model: {selectedProduct.model}</p>
+                    <p className="mb-1">Barcode: {selectedProduct.barcode}</p>
+                    <p className="mb-1 text-muted small">
+                      Already in cart: {getCurrentCartRetailQty(selectedProduct.id)} retail units
+                    </p>
+                    
+                    <div className="row mt-3">
+                      <div className="col-md-6">
+                        <div className="form-group">
+                          <label>Price Type:</label>
+                          <select
+                            className="form-control"
+                            value={priceType}
+                            onChange={(e) => {
+                              setPriceType(e.target.value);
+                              setQuantity(1); // Reset quantity when changing type
+                            }}
+                          >
+                            {selectedProduct.r_price > 0 && (
+                              <option value="retail">
+                                Retail ({formatCurrency(selectedProduct.r_price)}) - Available: {getAvailableStockConsideringCart(selectedProduct, 'retail')}
+                              </option>
+                            )}
+                            {selectedProduct.w_price > 0 && (
+                              <option value="wholesale">
+                                Wholesale ({formatCurrency(selectedProduct.w_price)}) - Available: {getAvailableStockConsideringCart(selectedProduct, 'wholesale')}
+                              </option>
+                            )}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <div className="form-group">
+                          <label>Quantity:</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            min="1"
+                            max={getMaxQuantity(selectedProduct, priceType)}
+                            value={quantity}
+                            onChange={(e) => {
+                              const newValue = Math.max(1, parseInt(e.target.value) || 1);
+                              const maxQty = getMaxQuantity(selectedProduct, priceType);
+                              setQuantity(Math.min(newValue, maxQty));
+                            }}
+                          />
+                          <small className="text-muted">
+                            Max: {getMaxQuantity(selectedProduct, priceType)} available
+                            {priceType === 'wholesale' && selectedProduct.packaging > 1 && 
+                              ` (${quantity * selectedProduct.packaging} retail units)`
+                            }
+                          </small>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-3">
+                      <strong>Total: {formatCurrency(getPrice(selectedProduct, priceType) * quantity)}</strong>
+                    </div>
+
+                    <div className="mt-3 d-flex gap-2">
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => setSelectedProduct(null)}
+                      >
+                        Back to Search
+                      </button>
+                      <button
+                        className="btn btn-primary"
+                        onClick={handleAddToCart}
+                        disabled={quantity > getMaxQuantity(selectedProduct, priceType) || quantity <= 0}
+                      >
+                        Add to Cart
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="product-list" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+              {filteredProducts.length === 0 ? (
+                <div className="text-center py-3">
+                  {searchTerm ? 'No products found' : 'Start typing to search products'}
+                </div>
+              ) : (
+                filteredProducts.map(product => {
+                  const availableRetail = getAvailableStockConsideringCart(product, 'retail');
+                  const availableWholesale = getAvailableStockConsideringCart(product, 'wholesale');
+                  const isOutOfStock = availableRetail <= 0 && availableWholesale <= 0;
+                  
+                  return (
+                    <div
+                      key={product.id}
+                      className={`card p-3 mb-2 cursor-pointer ${isOutOfStock ? 'opacity-50' : ''}`}
+                      onClick={() => !isOutOfStock && handleProductSelect(product)}
+                      style={{ cursor: isOutOfStock ? 'not-allowed' : 'pointer' }}
+                    >
+                      <div className="d-flex justify-content-between align-items-center">
+                        <div className="flex-grow-1">
+                          <strong>{product.product_name}</strong>
+                          <div>Model: {product.model}</div>
+                          <div>Barcode: {product.barcode}</div>
+                          <div className="d-flex gap-3 mt-1">
+                            {product.r_price > 0 && (
+                              <span className={`badge ${availableRetail > 0 ? 'bg-primary' : 'bg-secondary'}`}>
+                                Retail: {formatCurrency(product.r_price)} (Available: {availableRetail})
+                              </span>
+                            )}
+                            {product.w_price > 0 && (
+                              <span className={`badge ${availableWholesale > 0 ? 'bg-success' : 'bg-secondary'}`}>
+                                Wholesale: {formatCurrency(product.w_price)} (Available: {availableWholesale})
+                              </span>
+                            )}
+                          </div>
+                          {isOutOfStock && (
+                            <span className="badge bg-danger mt-1">Out of Stock</span>
+                          )}
+                        </div>
+                        <div>
+                          <i className="fas fa-chevron-right"></i>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+        </div>
+        <div className="modal-footer">
+          <small className="text-muted">
+            {selectedProduct ? 'Adjust quantity and price type before adding to cart' : 'Select a product to add it to cart'}
+          </small>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Reuse the existing OrderItem component
 const OrderItem = ({ item, increaseQty, decreaseQty, removeItem, formatCurrency }) => {
   const [swiping, setSwiping] = useState(false);
@@ -93,11 +424,15 @@ export default function MenuEdit() {
   const { saleId } = useParams();
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
+  const [allProducts, setAllProducts] = useState([]); // For search modal
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("hot");
   const [originalOrder, setOriginalOrder] = useState(null);
   const [saleDate, setSaleDate] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("Cash");
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showProductModal, setShowProductModal] = useState(false); // For product search modal
 
   const [orderItems, setOrderItems] = useState([]);
   const [discount, setDiscount] = useState(0);
@@ -163,6 +498,69 @@ export default function MenuEdit() {
       total: vatableTotal + nonVatableTotal
     };
   }, [orderItems]);
+
+  // Fetch all products for search modal
+  const fetchAllProducts = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/all-products`);
+      
+      // Transform the API data to match expected structure
+      const transformedProducts = transformProductData(response.data);
+      setAllProducts(transformedProducts);
+    } catch (error) {
+      console.error("Error fetching all products:", error);
+      toast.error("Failed to load products for search", { position: "top-center" });
+    }
+  };
+
+  // Helper function to transform API data
+  const transformProductData = (apiProducts) => {
+    const productMap = {};
+    
+    apiProducts.forEach(product => {
+      if (!productMap[product.id]) {
+        productMap[product.id] = {
+          id: product.id,
+          barcode: product.barcode,
+          model: product.model,
+          product_name: product.product_name,
+          packaging: parseInt(product.packaging) || 1,
+          capital: parseFloat(product.capital) || 0,
+          vatable: product.vatable,
+          image: product.image,
+          retail_unit_name: product.unit_name || 'pc',
+          wholesale_unit_name: product.unit_name || 'pkg',
+          // Initialize both price types as 0
+          r_price: 0,
+          w_price: 0,
+          rqty: 0,
+          wqty: 0,
+          type: 'both' // Default to both if we have both types
+        };
+      }
+      
+      // Update the product based on type
+      if (product.type === 'retail') {
+        productMap[product.id].r_price = parseFloat(product.price) || 0;
+        productMap[product.id].rqty = parseInt(product.qty) || 0;
+      } else if (product.type === 'wholesale') {
+        productMap[product.id].w_price = parseFloat(product.price) || 0;
+        productMap[product.id].wqty = parseInt(product.qty) || 0;
+        productMap[product.id].wholesale_unit_name = product.unit_name || 'pkg';
+      }
+      
+      // Determine the product type
+      if (productMap[product.id].r_price > 0 && productMap[product.id].w_price > 0) {
+        productMap[product.id].type = 'both';
+      } else if (productMap[product.id].r_price > 0) {
+        productMap[product.id].type = 'retail';
+      } else if (productMap[product.id].w_price > 0) {
+        productMap[product.id].type = 'wholesale';
+      }
+    });
+    
+    return Object.values(productMap);
+  };
 
   // Handle barcode scanning
   const handleBarcodeScan = async (barcode) => {
@@ -257,6 +655,7 @@ export default function MenuEdit() {
         setCustomerName(sale.customer || "");
         setTableNo(sale.table_no || "");
         setSaleDate(sale.date);
+        setPaymentMethod(sale.payment_method || "Cash");
         
         // Convert sales orders to order items format
         const items = sales_orders.map(order => ({
@@ -411,6 +810,7 @@ export default function MenuEdit() {
         vatable_sales: vatBreakdown.vatableAmount,
         vat_amount: vatBreakdown.vatAmount,
         non_vatable_sales: vatBreakdown.nonVatableTotal,
+        payment_method: paymentMethod,
         items: orderItems.map((item) => {
           const product = products.find(p => p.id === item.id);
           const packaging = product?.packaging || 1;
@@ -532,7 +932,7 @@ export default function MenuEdit() {
   };
 
   // Add item to cart with stock check
-  const addToCart = (product, type) => {
+  const addToCart = (product, type, quantity = 1) => {
     const price = type === 'retail' ? product.r_price : product.w_price;
     const unitName = type === 'retail' ? product.retail_unit_name : product.wholesale_unit_name;
     const packaging = product.packaging || 1;
@@ -567,11 +967,40 @@ export default function MenuEdit() {
       return;
     }
 
-    // For wholesale items, check if at least 1 full package can be added
-    if (type === 'wholesale' && remainingRetailStock < packaging) {
+    // Calculate required retail units for the new items
+    const requiredRetailUnits = type === 'retail' ? quantity : quantity * packaging;
+
+    // Check if we have enough stock for the requested quantity
+    if (requiredRetailUnits > remainingRetailStock) {
+      const availableUnits = type === 'retail' 
+        ? Math.floor(remainingRetailStock)
+        : Math.floor(remainingRetailStock / packaging);
+      
       Swal.fire({
         title: "Insufficient Stock",
-        text: `Not enough stock for a full wholesale package (needs ${packaging} retail units)`,
+        text: `Only ${availableUnits} ${type === 'retail' ? 'retail units' : 'wholesale packages'} available!`,
+        icon: "warning",
+        confirmButtonColor: "#fc204f",
+      });
+      return;
+    }
+
+    // For wholesale items, check if we have enough wholesale packages
+    if (type === 'wholesale' && quantity > product.wqty) {
+      Swal.fire({
+        title: "Insufficient Stock",
+        text: `Only ${product.wqty} wholesale packages available!`,
+        icon: "warning",
+        confirmButtonColor: "#fc204f",
+      });
+      return;
+    }
+
+    // For retail items, check if we have enough retail units
+    if (type === 'retail' && quantity > product.rqty) {
+      Swal.fire({
+        title: "Insufficient Stock",
+        text: `Only ${product.rqty} retail units available!`,
         icon: "warning",
         confirmButtonColor: "#fc204f",
       });
@@ -586,13 +1015,13 @@ export default function MenuEdit() {
           item.id === product.id && item.type === type
             ? { 
                 ...item, 
-                quantity: item.quantity + 1,
+                quantity: item.quantity + quantity,
                 availableStock: type === 'retail' 
-                  ? product.rqty - (currentCartRetailQty - (item.quantity * (item.type === 'retail' ? 1 : packaging)))
-                  : product.wqty - Math.floor((currentCartRetailQty - (item.quantity * packaging)) / packaging),
+                  ? product.rqty - (currentCartRetailQty - (item.quantity * (item.type === 'retail' ? 1 : packaging)) + (type === 'retail' ? quantity : quantity * packaging))
+                  : product.wqty - Math.floor((currentCartRetailQty - (item.quantity * packaging) + (type === 'retail' ? quantity : quantity * packaging)) / packaging),
                 stockWarning: type === 'retail'
-                  ? (item.quantity + 1) > product.rqty
-                  : (item.quantity + 1) > product.wqty
+                  ? (item.quantity + quantity) > product.rqty
+                  : (item.quantity + quantity) > product.wqty
               }
             : item
         );
@@ -605,7 +1034,7 @@ export default function MenuEdit() {
           name: product.product_name,
           capital: product.capital || 0,
           price: price,
-          quantity: 1,
+          quantity: quantity,
           type: type,
           vatable: product.vatable,
           retail_unit_name: product.retail_unit_name,
@@ -618,6 +1047,62 @@ export default function MenuEdit() {
       ];
     });
   };
+
+  //DisableBrowserShortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Disable F1 to F12
+      if (e.keyCode >= 112 && e.keyCode <= 123) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        switch (e.keyCode) {
+          case 112: // F1
+            setShowProductModal(true);
+            fetchAllProducts(); // Load products when opening modal
+            console.log('F1 pressed - Product Search modal opened');
+            break;
+
+          case 113: // F2
+            setShowPaymentModal(true);
+            console.log('F2 pressed - Payment Method modal opened');
+            break;
+
+          case 115: // F4
+            console.log('F4 pressed');
+            break;
+
+          default:
+            console.log(`Function key ${e.keyCode} pressed`);
+            break;
+        }
+      }
+
+      // Disable other browser shortcuts
+      if (e.ctrlKey || e.altKey || e.metaKey) {
+        // Ctrl+R / F5
+        if (e.keyCode === 82 || e.keyCode === 116) {
+          e.preventDefault();
+          toast.warning('Refresh is disabled in POS mode', { position: 'top-center' });
+        }
+        // Ctrl+N
+        if (e.keyCode === 78) e.preventDefault();
+        // Ctrl+W
+        if (e.keyCode === 87) e.preventDefault();
+      }
+
+      // Disable F5 refresh
+      if (e.keyCode === 116) {
+        e.preventDefault();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown, true);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown, true);
+    };
+  }, []);
 
   // Fetch categories
   useEffect(() => {
@@ -682,6 +1167,24 @@ export default function MenuEdit() {
         theme="light"
       />
       
+      {/* Payment Method Modal */}
+      <PaymentMethodModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        paymentMethod={paymentMethod}
+        setPaymentMethod={setPaymentMethod}
+      />
+      
+      {/* Product Search Modal */}
+      <ProductSearchModal
+        isOpen={showProductModal}
+        onClose={() => setShowProductModal(false)}
+        allProducts={allProducts}
+        addToCart={addToCart}
+        formatCurrency={formatCurrency}
+        orderItems={orderItems} // Pass the current cart items
+      />
+      
       {/* Hidden PrintOrder Component */}
       <div style={{ display: "none" }}>
         <PrintOrder
@@ -699,6 +1202,7 @@ export default function MenuEdit() {
           vatableSales={vatBreakdown.vatableAmount}
           vatAmount={vatBreakdown.vatAmount}
           nonVatableSales={vatBreakdown.nonVatableTotal}
+          paymentMethod={paymentMethod}
         />
       </div>
 
@@ -844,6 +1348,18 @@ export default function MenuEdit() {
                 onChange={(e) => setCustomerName(e.target.value)}
               />
             </div>
+            
+            {/* Payment Method Display */}
+            <div className="input-group input-group-sm mb-2">
+              <span className="input-group-text bg-light border-0">
+                <i className="fas fa-credit-card text-dark"></i>
+              </span>
+              <div className="form-control border-0 d-flex align-items-center justify-content-between">
+                <span>{paymentMethod}</span>
+                <small className="text-muted">F2</small>
+              </div>
+            </div>
+            
             <div className="input-group input-group-sm" style={{ display: 'none' }}>
               <span className="input-group-text bg-light border-0 text-primary">
                 <i className="fas fa-chair text-dark"></i>
@@ -940,7 +1456,7 @@ export default function MenuEdit() {
                 onClick={handleUpdateOrder}
                 disabled={loadingOrderNumber || orderItems.length === 0}
               >
-                <i className="fas fa-shopping-cart"></i> Checkout
+                <i className="fas fa-save"></i> Update Order
               </button>
             </div>
           </div>
