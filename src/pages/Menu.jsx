@@ -794,7 +794,11 @@ export default function Menu() {
         }),
       };
 
-      const res = await axios.post(`${API_BASE_URL}/api/checkout`, payload);
+      const res = await axios.post(`${API_BASE_URL}/api/checkout`, payload, {
+        headers: {
+          'Content-Type': 'application/json'
+        },
+      });
 
       if (res.data.status === "success") {
         if (status === 1) {
@@ -1049,9 +1053,12 @@ export default function Menu() {
 
   useEffect(() => {
     axios
-      .get(`${API_BASE_URL}/api/categories`)
+      .get(`${API_BASE_URL}/sanctum/csrf-cookie`)
+      .then(() => {
+        return axios.get(`${API_BASE_URL}/api/categories`);
+      })
       .then((res) => setCategories(res.data))
-      .catch(console.error)
+      .catch((err) => console.error("Error fetching categories:", err))
       .finally(() => setLoadingCategories(false));
   }, [API_BASE_URL]);
 
